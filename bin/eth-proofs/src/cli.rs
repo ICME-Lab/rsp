@@ -24,18 +24,6 @@ pub struct Args {
     #[clap(long, default_value_t = 100)]
     pub block_interval: u64,
 
-    /// ETH proofs endpoint.
-    #[clap(long, env)]
-    pub eth_proofs_endpoint: String,
-
-    /// ETH proofs API token.
-    #[clap(long, env)]
-    pub eth_proofs_api_token: String,
-
-    /// Optional ETH proofs cluster ID.
-    #[clap(long, default_value_t = 1)]
-    pub eth_proofs_cluster_id: u64,
-
     /// PagerDuty integration key.
     #[clap(long, env)]
     pub pager_duty_integration_key: Option<String>,
