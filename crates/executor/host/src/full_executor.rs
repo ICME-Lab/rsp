@@ -8,6 +8,7 @@ use std::{
 use alloy_provider::Provider;
 use either::Either;
 use eyre::bail;
+use reth_ethereum_primitives::EthPrimitives;
 use reth_primitives_traits::NodePrimitives;
 use revm_primitives::B256;
 use rsp_client_executor::io::ClientExecutorInput;
@@ -221,6 +222,38 @@ where
         }
         Ok(())
     }
+
+    pub async fn test(&self) {
+        use revm::{
+            database::{CacheDB, StateBuilder, WrapDatabaseRef},
+            inspector::{InspectEvm, NoOpInspector},
+            primitives::TxKind,
+            Context, ExecuteCommitEvm, ExecuteEvm, MainBuilder, MainContext,
+        };
+
+        info!("trying to read file from disk");
+        let input = tokio::fs::read("/home/altonen/work/rsp/20526624.bin").await.unwrap();
+
+        info!("trying to deserialize input");
+        let input = bincode::deserialize::<ClientExecutorInput<EthPrimitives>>(&input).unwrap();
+
+        info!("trying to create witness db");
+
+        let trie_db = input.witness_db().unwrap();
+        let db = WrapDatabaseRef(trie_db);
+
+        let mut test = revm::database::StateBuilder::new_with_database(db).build();
+
+        let ctx = revm::Context::mainnet().with_db(&mut test);
+        // .modify_block_chained(|b| {
+        //     b.number = block.header.number;
+        //     b.beneficiary = block.header.beneficiary;
+        //     b.timestamp = block.header.timestamp;
+        //     b.difficulty = block.header.difficulty;
+        //     b.gas_limit = block.header.gas_limit;
+        //     b.basefee = block.header.base_fee_per_gas.unwrap_or_default();
+        // })
+    }
 }
 
 impl<C, P> BlockExecutor<C> for FullExecutor<C, P>
@@ -267,17 +300,20 @@ where
                     )
                     .await?;
 
-                if let Some(ref cache_dir) = self.config.cache_dir {
-                    let input_folder = cache_dir.join(format!("input/{}", self.config.chain.id()));
-                    if !input_folder.exists() {
-                        std::fs::create_dir_all(&input_folder)?;
-                    }
+                warn!("INPUT SAVED");
 
-                    let input_path = input_folder.join(format!("{}.bin", block_number));
-                    let mut cache_file = std::fs::File::create(input_path)?;
-
-                    bincode::serialize_into(&mut cache_file, &client_input)?;
+                let cache_dir = PathBuf::from("/tmp");
+                // if let Some(ref cache_dir) = self.config.cache_dir {
+                let input_folder = cache_dir.join(format!("input/{}", self.config.chain.id()));
+                if !input_folder.exists() {
+                    std::fs::create_dir_all(&input_folder)?;
                 }
+
+                let input_path = input_folder.join(format!("{}.bin", block_number));
+                let mut cache_file = std::fs::File::create(input_path)?;
+
+                bincode::serialize_into(&mut cache_file, &client_input)?;
+                // }
 
                 client_input
             }

@@ -67,16 +67,18 @@ async fn main() -> eyre::Result<()> {
     )
     .await?;
 
-    info!("Latest block number: {}", http_provider.get_block_number().await?);
+    executor.test().await;
 
-    let block_number = 20526624u64;
+    // info!("Latest block number: {}", http_provider.get_block_number().await?);
 
-    if let Err(err) = executor.execute(block_number).await {
-        let error_message = format!("Error handling block {}: {err}", block_number);
-        error!(error_message);
-    }
+    // let block_number = 20526624u64;
 
-    info!("DONE!");
+    // if let Err(err) = executor.execute(block_number).await {
+    //     let error_message = format!("Error handling block {}: {err}", block_number);
+    //     error!(error_message);
+    // }
+
+    // info!("DONE!");
 
     Ok(())
 }
