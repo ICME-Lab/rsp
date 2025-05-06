@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use std::{
     fmt::{Debug, Formatter},
     path::{Path, PathBuf},
@@ -5,11 +7,12 @@ use std::{
     time::{Duration, Instant},
 };
 
+use alloy_consensus::{BlockHeader, Transaction};
 use alloy_provider::Provider;
 use either::Either;
 use eyre::bail;
 use reth_ethereum_primitives::EthPrimitives;
-use reth_primitives_traits::NodePrimitives;
+use reth_primitives_traits::{NodePrimitives, SignedTransaction};
 use revm_primitives::B256;
 use rsp_client_executor::io::ClientExecutorInput;
 use rsp_rpc_db::RpcDb;
@@ -238,21 +241,58 @@ where
         let input = bincode::deserialize::<ClientExecutorInput<EthPrimitives>>(&input).unwrap();
 
         info!("trying to create witness db");
-
         let trie_db = input.witness_db().unwrap();
         let db = WrapDatabaseRef(trie_db);
 
-        let mut test = revm::database::StateBuilder::new_with_database(db).build();
+        info!("trying to create block");
+        let block = input.current_block.clone();
 
-        let ctx = revm::Context::mainnet().with_db(&mut test);
-        // .modify_block_chained(|b| {
-        //     b.number = block.header.number;
-        //     b.beneficiary = block.header.beneficiary;
-        //     b.timestamp = block.header.timestamp;
-        //     b.difficulty = block.header.difficulty;
-        //     b.gas_limit = block.header.gas_limit;
-        //     b.basefee = block.header.base_fee_per_gas.unwrap_or_default();
-        // })
+        info!("create context");
+        let mut test = revm::database::StateBuilder::new_with_database(db).build();
+        let mut evm = revm::Context::mainnet()
+            .with_db(&mut test)
+            .modify_block_chained(|b| {
+                b.number = block.number;
+                b.beneficiary = block.beneficiary;
+                b.timestamp = block.timestamp;
+                b.difficulty = block.header.difficulty;
+                b.gas_limit = block.header.gas_limit;
+                b.basefee = block.header.base_fee_per_gas.unwrap_or_default();
+            })
+            .build_mainnet();
+
+        for (i, tx) in block.body.transactions().enumerate() {
+            info!("execute tx {i}");
+            let tx = tx.try_clone_into_recovered().unwrap();
+            let signer = tx.signer();
+            let inner = tx.into_inner();
+
+            evm.modify_tx(|etx| {
+                etx.caller = signer;
+                etx.gas_limit = inner.gas_limit();
+                etx.gas_price = inner.gas_price().unwrap_or(inner.max_fee_per_gas());
+                etx.value = inner.value();
+                etx.data = inner.input().to_owned();
+                etx.gas_priority_fee = inner.max_priority_fee_per_gas();
+                etx.chain_id = Some(1u64);
+                etx.nonce = inner.nonce();
+                if let Some(access_list) = inner.access_list() {
+                    etx.access_list = access_list.clone()
+                } else {
+                    etx.access_list = Default::default();
+                }
+
+                etx.kind = match inner.to() {
+                    Some(to_address) => TxKind::Call(to_address),
+                    None => TxKind::Create,
+                };
+            });
+
+            match evm.replay_commit() {
+                Ok(_) => info!("tx {i} executed succesfully"),
+                Err(error) => warn!("failed to execute tx {i}: {error:?}"),
+            }
+        }
     }
 }
 
