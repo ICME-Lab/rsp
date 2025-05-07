@@ -12,7 +12,9 @@ use alloy_provider::Provider;
 use either::Either;
 use eyre::bail;
 use reth_ethereum_primitives::EthPrimitives;
-use reth_primitives_traits::{NodePrimitives, SignedTransaction};
+use reth_primitives_traits::{Block, Header, NodePrimitives, SignedTransaction};
+use reth_trie::{HashedPostState, KeccakKeyHasher};
+use revm::{context::ContextTr, inspector::JournalExt};
 use revm_primitives::B256;
 use rsp_client_executor::io::ClientExecutorInput;
 use rsp_rpc_db::RpcDb;
@@ -23,7 +25,7 @@ use sp1_sdk::{
     SP1VerifyingKey,
 };
 use tokio::{task, time::sleep};
-use tracing::{info, info_span, warn};
+use tracing::{error, info, info_span, warn};
 
 use crate::{Config, ExecutionHooks, ExecutorComponents, HostExecutor};
 
@@ -238,7 +240,7 @@ where
         let input = tokio::fs::read("/home/altonen/work/rsp/20526624.bin").await.unwrap();
 
         info!("trying to deserialize input");
-        let input = bincode::deserialize::<ClientExecutorInput<EthPrimitives>>(&input).unwrap();
+        let mut input = bincode::deserialize::<ClientExecutorInput<EthPrimitives>>(&input).unwrap();
 
         info!("trying to create witness db");
         let trie_db = input.witness_db().unwrap();
@@ -248,7 +250,11 @@ where
         let block = input.current_block.clone();
 
         info!("create context");
-        let mut test = revm::database::StateBuilder::new_with_database(db).build();
+        let mut test =
+            revm::database::StateBuilder::new_with_database(db).with_bundle_update().build();
+        info!("bundle state: {:?}", test.bundle_state);
+        info!("transition state = {:?}", test.transition_state);
+
         let mut evm = revm::Context::mainnet()
             .with_db(&mut test)
             .modify_block_chained(|b| {
@@ -262,7 +268,7 @@ where
             .build_mainnet();
 
         for (i, tx) in block.body.transactions().enumerate() {
-            info!("execute tx {i}");
+            // info!("execute tx {i}");
             let tx = tx.try_clone_into_recovered().unwrap();
             let signer = tx.signer();
             let inner = tx.into_inner();
@@ -289,9 +295,32 @@ where
             });
 
             match evm.replay_commit() {
-                Ok(_) => info!("tx {i} executed succesfully"),
+                // Ok(_) => info!("tx {i} executed succesfully"),
+                Ok(_) => {}
                 Err(error) => warn!("failed to execute tx {i}: {error:?}"),
             }
+        }
+
+        info!("bundle state: {:?}", test.bundle_state);
+
+        let transitions = test.transition_state.as_mut().expect("to exist").take();
+        let bundle = test.bundle_state.apply_transitions_and_create_reverts(
+            transitions,
+            revm::database::states::bundle_state::BundleRetention::PlainState,
+        );
+        let bundle = test.take_bundle();
+
+        let hashed: HashedPostState =
+            HashedPostState::from_bundle_state::<KeccakKeyHasher>(&bundle.state);
+
+        let test = input.parent_state.update(&hashed);
+        let state_root = input.parent_state.state_root();
+
+        info!(target: "a", "current state root  = {state_root}");
+        info!(target: "a", "previous state root = {}", input.current_block.header().state_root());
+
+        if state_root != input.current_block.header().state_root() {
+            error!("invalid state root");
         }
     }
 }
