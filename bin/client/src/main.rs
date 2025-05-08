@@ -19,9 +19,16 @@ pub fn main() {
         Arc::new((&input.genesis).try_into().unwrap()),
         input.custom_beneficiary,
     );
-    let header = executor.execute(input).expect("failed to execute client");
-    let block_hash = header.hash_slow();
+    let header = executor.execute_new(input).expect("failed to execute client");
 
-    // Commit the block hash.
-    sp1_zkvm::io::commit(&block_hash);
+    for (account, state) in &header.state {
+        println!("account: {account:?}, {:?}", state.status);
+    }
+
+    panic!("zzzzzzzzzzz");
+
+    // let block_hash = header.hash_slow();
+
+    // // Commit the block hash.
+    // sp1_zkvm::io::commit(&block_hash);
 }

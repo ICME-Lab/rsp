@@ -252,8 +252,11 @@ where
         info!("create context");
         let mut test =
             revm::database::StateBuilder::new_with_database(db).with_bundle_update().build();
-        info!("bundle state: {:?}", test.bundle_state);
-        info!("transition state = {:?}", test.transition_state);
+        info!("bundle state lne: {}", test.bundle_state.state.len());
+        info!(
+            "transition state = {:?}",
+            test.transition_state.as_ref().map_or(0, |t| t.transitions.len())
+        );
 
         let mut evm = revm::Context::mainnet()
             .with_db(&mut test)
@@ -271,12 +274,15 @@ where
             // info!("execute tx {i}");
             let tx = tx.try_clone_into_recovered().unwrap();
             let signer = tx.signer();
-            let inner = tx.into_inner();
+            let inner = tx.clone().into_inner();
+
+            info!("signer = {signer:?}");
 
             evm.modify_tx(|etx| {
                 etx.caller = signer;
                 etx.gas_limit = inner.gas_limit();
-                etx.gas_price = inner.gas_price().unwrap_or(inner.max_fee_per_gas());
+                // etx.gas_price = inner.gas_price().unwrap_or(inner.max_fee_per_gas());
+                etx.gas_price = tx.gas_price().unwrap_or(inner.effective_gas_price(None));
                 etx.value = inner.value();
                 etx.data = inner.input().to_owned();
                 etx.gas_priority_fee = inner.max_priority_fee_per_gas();
@@ -301,14 +307,39 @@ where
             }
         }
 
-        info!("bundle state: {:?}", test.bundle_state);
+        info!("bundle state len: {}", test.bundle_state.state.len());
 
         let transitions = test.transition_state.as_mut().expect("to exist").take();
         let bundle = test.bundle_state.apply_transitions_and_create_reverts(
             transitions,
             revm::database::states::bundle_state::BundleRetention::PlainState,
         );
-        let bundle = test.take_bundle();
+        let mut bundle = test.take_bundle();
+
+        for (account, state) in &bundle.state {
+            info!("account: {account:?}, {:?}", state.status);
+        }
+
+        bundle.state.retain(|key, _| {
+            key == &alloy_primitives::address!("0x000000629fbcf27a347d1aeba658435230d74a5f")
+            // key == &alloy_primitives::address!("0x037dd48ffd09fbdc1e385fefda48c6e1ef1382af")
+            // key == &alloy_primitives::address!("0x30daff27da012e118c07fae5380eb06f707c5ce4")
+            // key == &alloy_primitives::address!("0x3777261fd6e1ec0704735d491328215b9f5825b1") ||
+            // key == &alloy_primitives::address!("0x671e1c289f45ccaa82843501c7bc841ba26b97f1") ||
+            // key == &alloy_primitives::address!("0xf70da97812cb96acdf810712aa562db8dfa3dbef")
+        });
+        use std::str::FromStr;
+        let mut value = bundle
+            .state
+            .get_mut(&alloy_primitives::address!("0x000000629fbcf27a347d1aeba658435230d74a5f"))
+            .unwrap();
+
+        value.info.as_mut().unwrap().balance =
+            alloy_primitives::U256::from_str("63298440508785708615").unwrap();
+
+        info!("bundle state len: {}", bundle.state.len());
+
+        info!("{:#?}", bundle.state);
 
         let hashed: HashedPostState =
             HashedPostState::from_bundle_state::<KeccakKeyHasher>(&bundle.state);
@@ -316,8 +347,8 @@ where
         let test = input.parent_state.update(&hashed);
         let state_root = input.parent_state.state_root();
 
-        info!(target: "a", "current state root  = {state_root}");
-        info!(target: "a", "previous state root = {}", input.current_block.header().state_root());
+        info!(target: "a", "calculated state root = {state_root}");
+        info!(target: "a", "actual state root     = {}", input.current_block.header().state_root());
 
         if state_root != input.current_block.header().state_root() {
             error!("invalid state root");
@@ -371,18 +402,18 @@ where
 
                 warn!("INPUT SAVED");
 
-                let cache_dir = PathBuf::from("/tmp");
-                // if let Some(ref cache_dir) = self.config.cache_dir {
-                let input_folder = cache_dir.join(format!("input/{}", self.config.chain.id()));
-                if !input_folder.exists() {
-                    std::fs::create_dir_all(&input_folder)?;
-                }
-
-                let input_path = input_folder.join(format!("{}.bin", block_number));
-                let mut cache_file = std::fs::File::create(input_path)?;
-
-                bincode::serialize_into(&mut cache_file, &client_input)?;
+                // let cache_dir = PathBuf::from("/tmp");
+                // let input_folder = cache_dir.join(format!("input/{}", self.config.chain.id()));
+                // if !input_folder.exists() {
+                //     std::fs::create_dir_all(&input_folder)?;
                 // }
+
+                // let input_path = input_folder.join(format!("{}.bin", block_number));
+                // let mut cache_file = std::fs::File::create(input_path)?;
+
+                // bincode::serialize_into(&mut cache_file, &client_input)?;
+
+                // TODO: calculate state root here
 
                 client_input
             }

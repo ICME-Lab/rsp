@@ -123,7 +123,7 @@ impl<C: ConfigureEvm> HostExecutor<C> {
         });
 
         // Convert the output to an execution outcome.
-        let executor_outcome = ExecutionOutcome::new(
+        let mut executor_outcome = ExecutionOutcome::new(
             execution_output.state,
             vec![execution_output.result.receipts],
             current_block.header().number(),
@@ -175,18 +175,30 @@ impl<C: ConfigureEvm> HostExecutor<C> {
         )?;
 
         // Verify the state root.
-        tracing::info!("verifying the state root");
+        tracing::info!("verifying the state root = {}", executor_outcome.state().state.len());
+
+        // panic!("heree");
         let state_root = {
             let mut mutated_state = state.clone();
+            executor_outcome.bundle.state.retain(|key, _| {
+                key == &alloy_primitives::address!("0x000000629fbcf27a347d1aeba658435230d74a5f")
+                // key == &alloy_primitives::address!("0x037dd48ffd09fbdc1e385fefda48c6e1ef1382af")
+            });
+            tracing::info!("{:#?}", executor_outcome.bundle.state);
+
             mutated_state.update(&executor_outcome.hash_state_slow::<KeccakKeyHasher>());
             mutated_state.state_root()
         };
-        if state_root != current_block.header().state_root() {
-            return Err(HostError::StateRootMismatch(
-                state_root,
-                current_block.header().state_root(),
-            ));
-        }
+
+        // if state_root != current_block.header().state_root() {
+        //     return Err(HostError::StateRootMismatch(
+        //         state_root,
+        //         current_block.header().state_root(),
+        //     ));
+        // }
+
+        tracing::info!("state root = {:?}", state_root);
+        panic!("zzzz");
 
         // Derive the block header.
         //
