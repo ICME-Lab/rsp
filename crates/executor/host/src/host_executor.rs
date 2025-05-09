@@ -192,14 +192,48 @@ impl<C: ConfigureEvm> HostExecutor<C> {
             {
                 let mut mutated_state = state.clone();
                 executor_outcome.bundle.state.retain(|key, _| {
-            key == &alloy_primitives::address!("0x000000629fbcf27a347d1aeba658435230d74a5f") ||
-                key == &alloy_primitives::address!("0x037dd48ffd09fbdc1e385fefda48c6e1ef1382af") ||
-                key == &alloy_primitives::address!("0x30daff27da012e118c07fae5380eb06f707c5ce4") ||
-                key == &alloy_primitives::address!("0x3777261fd6e1ec0704735d491328215b9f5825b1") ||
-                key == &alloy_primitives::address!("0x671e1c289f45ccaa82843501c7bc841ba26b97f1") ||
-                key == &alloy_primitives::address!("0xf70da97812cb96acdf810712aa562db8dfa3dbef")
+                key == &alloy_primitives::address!("0x000000629fbcf27a347d1aeba658435230d74a5f") ||
+key == &alloy_primitives::address!("0x037dd48ffd09fbdc1e385fefda48c6e1ef1382af") ||
+key == &alloy_primitives::address!("0x06a9ab27c7e2255df1815e6cc0168d7755feb19a") ||
+key == &alloy_primitives::address!("0x08e96f308eb008b3db68640aba6b06078625f8cd") ||
+key == &alloy_primitives::address!("0x0d0707963952f2fba59dd06f2b425ace40b492fe") ||
+key == &alloy_primitives::address!("0x111111125421ca6dc452d289314280a0f8842a65") ||
+key == &alloy_primitives::address!("0x12106758e03613e66fa96209927940c825e85fff") ||
+key == &alloy_primitives::address!("0x1516008376543c283654f60b03a28e1c9930806a") ||
+key == &alloy_primitives::address!("0x16c0829dd60124f2a7d49a5e768f7978a57c2393") ||
+key == &alloy_primitives::address!("0x1728d7099f6535f5efeba784a4ba54120ceada6b") ||
+key == &alloy_primitives::address!("0x1d71eb5d4f05884add4d8e8a4d31eef3a4263c47") ||
+key == &alloy_primitives::address!("0x23529b46bb5fdb9f9d0427e9a35115551b72581b") ||
+key == &alloy_primitives::address!("0x239426c2feda17d10635b6e7d1cfca9ab33ab222") ||
+key == &alloy_primitives::address!("0x26c1087b6a658c106768eea1931e083ce469f20c") ||
+key == &alloy_primitives::address!("0x30daff27da012e118c07fae5380eb06f707c5ce4") ||
+key == &alloy_primitives::address!("0x340d2bde5eb28c1eed91b2f790723e3b160613b7") ||
+key == &alloy_primitives::address!("0x3777261fd6e1ec0704735d491328215b9f5825b1") ||
+key == &alloy_primitives::address!("0x4280b10e7cd12171e944401e4018250d2052a0d6") ||
+key == &alloy_primitives::address!("0x4a5565db6515923418bb9ab1a8ad816e85c12ff4") ||
+key == &alloy_primitives::address!("0x4cff49d0a19ed6ff845a9122fa912abcfb1f68a6") ||
+key == &alloy_primitives::address!("0x4d224452801aced8b2f0aebe155379bb5d594381") ||
+key == &alloy_primitives::address!("0x4d9ff50ef4da947364bb9650892b2554e7be5e2b") ||
+key == &alloy_primitives::address!("0x5c9538085fdfce7470e66f7c3e1b1f0f01d969aa") ||
+key == &alloy_primitives::address!("0x5faa989af96af85384b8a938c2ede4a7378d9875") ||
+key == &alloy_primitives::address!("0x671e1c289f45ccaa82843501c7bc841ba26b97f1")
+
+// key == &alloy_primitives::address!("0x6887246668a3b87f54deb3b94ba47a6f63f32985")
+// key == &alloy_primitives::address!("0x6c5146e923ce3854ed3cf73aafee10fda770e92b") ||
+// key == &alloy_primitives::address!("0x6cc5f688a315f3dc28a7781717a9a798a59fda7b") ||
+// key == &alloy_primitives::address!("0x6f7977ad0d71e89a70e70816dd7a04928c9ece99") ||
+// key == &alloy_primitives::address!("0x7039cd6d7966672f194e8139074c3d5c4e6dcf65") ||
+// key == &alloy_primitives::address!("0x71306dbdcd14b1770ceec15de46bb9e9c1f61022") ||
+// key == &alloy_primitives::address!("0x71439c54126bfd73d6757b3f1b0cb1b74a7be3a7")
             });
                 tracing::info!("{:#?}", executor_outcome.bundle.state);
+
+                tracing::info!(
+                    "state for 0x6887246668a3b87f54deb3b94ba47a6f63f32985: {:#?}",
+                    executor_outcome.bundle.state.get(&alloy_primitives::address!(
+                        "0x6887246668a3b87f54deb3b94ba47a6f63f32985"
+                    ))
+                );
 
                 mutated_state.update(&executor_outcome.hash_state_slow::<KeccakKeyHasher>());
                 mutated_state.state_root()

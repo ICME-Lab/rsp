@@ -67,18 +67,17 @@ async fn main() -> eyre::Result<()> {
     )
     .await?;
 
+    // run revm block executor
     // executor.test().await;
+
+    // run reth (rsp) block executor
+    //
+    // this can be used to produce a serialized state (e.g., ./20526624.bin) which can then be
+    // deserialized by the revm prover (executor.test().await above) to execute block against the
+    // state
+    //
+    // this can also be used to produce a state root for the block
     executor.execute(20526624u64).await;
-
-    // info!("Latest block number: {}", http_provider.get_block_number().await?);
-
-    // let block_number = 20526624u64;
-
-    // if let Err(err) = executor.execute(block_number).await {
-    //     let error_message = format!("Error handling block {}: {err}", block_number);
-    //     error!(error_message);
-    // }
-    // info!("DONE!");
 
     Ok(())
 }

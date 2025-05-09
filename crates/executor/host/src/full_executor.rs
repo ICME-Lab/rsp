@@ -267,6 +267,10 @@ where
                 b.difficulty = block.header.difficulty;
                 b.gas_limit = block.header.gas_limit;
                 b.basefee = block.header.base_fee_per_gas.unwrap_or_default();
+
+                tracing::error!("excess = {:?}", block.header.excess_blob_gas);
+
+                // b.set_blob_excess_gas_and_price(block.header.excess_blob_gas.unwrap(), true);
             })
             .build_mainnet();
 
@@ -277,6 +281,7 @@ where
             let inner = tx.clone().into_inner();
 
             info!("signer = {signer:?}");
+            info!("tx = {tx:?}");
 
             evm.modify_tx(|etx| {
                 etx.caller = signer;
@@ -284,13 +289,28 @@ where
                 // etx.gas_price = inner.gas_price().unwrap_or(inner.max_fee_per_gas());
                 etx.gas_price = inner.effective_gas_price(block.header.base_fee_per_gas);
 
-                info!("\ngas price: {:?}", etx.gas_price);
+                // blobs
+                // if let Some(fee) = inner.max_fee_per_blob_gas() {
+                //     etx.max_fee_per_blob_gas = fee;
+                // }
+                // if let Some(hashes) = inner.blob_versioned_hashes() {
+                //     etx.blob_hashes = hashes.to_vec();
+                // } else {
+                //     etx.blob_hashes = Vec::new();
+                // }
+
+                info!("gas price: {:?}", etx.gas_price);
                 info!("effective gas price: {:?}", inner.effective_gas_price(None));
+                info!(
+                    "blob count = {:?}, price = {:?}",
+                    etx.blob_hashes.len(),
+                    etx.max_fee_per_blob_gas
+                );
 
                 etx.value = inner.value();
                 etx.data = inner.input().to_owned();
                 etx.gas_priority_fee = inner.max_priority_fee_per_gas();
-                etx.max_fee_per_blob_gas = inner.max_fee_per_blob_gas().unwrap_or(u128::MAX);
+                // etx.max_fee_per_blob_gas = inner.max_fee_per_blob_gas().unwrap_or(u128::MAX);
                 etx.chain_id = Some(1u64);
                 etx.nonce = inner.nonce();
                 if let Some(access_list) = inner.access_list() {
@@ -310,6 +330,8 @@ where
                 Ok(_) => {}
                 Err(error) => warn!("failed to execute tx {i}: {error:?}"),
             }
+
+            info!("");
         }
 
         info!("bundle state len: {}", test.bundle_state.state.len());
@@ -328,21 +350,46 @@ where
         bundle.state.retain(|key, _| {
             key == &alloy_primitives::address!("0x000000629fbcf27a347d1aeba658435230d74a5f") ||
                 key == &alloy_primitives::address!("0x037dd48ffd09fbdc1e385fefda48c6e1ef1382af") ||
+                key == &alloy_primitives::address!("0x06a9ab27c7e2255df1815e6cc0168d7755feb19a") ||
+                key == &alloy_primitives::address!("0x08e96f308eb008b3db68640aba6b06078625f8cd") ||
+                key == &alloy_primitives::address!("0x0d0707963952f2fba59dd06f2b425ace40b492fe") ||
+                key == &alloy_primitives::address!("0x111111125421ca6dc452d289314280a0f8842a65") ||
+                key == &alloy_primitives::address!("0x12106758e03613e66fa96209927940c825e85fff") ||
+                key == &alloy_primitives::address!("0x1516008376543c283654f60b03a28e1c9930806a") ||
+                key == &alloy_primitives::address!("0x16c0829dd60124f2a7d49a5e768f7978a57c2393") ||
+                key == &alloy_primitives::address!("0x1728d7099f6535f5efeba784a4ba54120ceada6b") ||
+                key == &alloy_primitives::address!("0x1d71eb5d4f05884add4d8e8a4d31eef3a4263c47") ||
+                key == &alloy_primitives::address!("0x23529b46bb5fdb9f9d0427e9a35115551b72581b") ||
+                key == &alloy_primitives::address!("0x239426c2feda17d10635b6e7d1cfca9ab33ab222") ||
+                key == &alloy_primitives::address!("0x26c1087b6a658c106768eea1931e083ce469f20c") ||
                 key == &alloy_primitives::address!("0x30daff27da012e118c07fae5380eb06f707c5ce4") ||
+                key == &alloy_primitives::address!("0x340d2bde5eb28c1eed91b2f790723e3b160613b7") ||
                 key == &alloy_primitives::address!("0x3777261fd6e1ec0704735d491328215b9f5825b1") ||
-                key == &alloy_primitives::address!("0x671e1c289f45ccaa82843501c7bc841ba26b97f1") ||
-                key == &alloy_primitives::address!("0xf70da97812cb96acdf810712aa562db8dfa3dbef")
+                key == &alloy_primitives::address!("0x4280b10e7cd12171e944401e4018250d2052a0d6") ||
+                key == &alloy_primitives::address!("0x4a5565db6515923418bb9ab1a8ad816e85c12ff4") ||
+                key == &alloy_primitives::address!("0x4cff49d0a19ed6ff845a9122fa912abcfb1f68a6") ||
+                key == &alloy_primitives::address!("0x4d224452801aced8b2f0aebe155379bb5d594381") ||
+                key == &alloy_primitives::address!("0x4d9ff50ef4da947364bb9650892b2554e7be5e2b") ||
+                key == &alloy_primitives::address!("0x5c9538085fdfce7470e66f7c3e1b1f0f01d969aa") ||
+                key == &alloy_primitives::address!("0x5faa989af96af85384b8a938c2ede4a7378d9875") ||
+                key == &alloy_primitives::address!("0x671e1c289f45ccaa82843501c7bc841ba26b97f1")
+
+            // TODO uncomment a line to include the account into post-state
+            // key == &alloy_primitives::address!("0x6887246668a3b87f54deb3b94ba47a6f63f32985")
+            // key == &alloy_primitives::address!("0x6c5146e923ce3854ed3cf73aafee10fda770e92b") ||
+            // key == &alloy_primitives::address!("0x6cc5f688a315f3dc28a7781717a9a798a59fda7b") ||
+            // key == &alloy_primitives::address!("0x6f7977ad0d71e89a70e70816dd7a04928c9ece99") ||
+            // key == &alloy_primitives::address!("0x7039cd6d7966672f194e8139074c3d5c4e6dcf65") ||
+            // key == &alloy_primitives::address!("0x71306dbdcd14b1770ceec15de46bb9e9c1f61022") ||
+            // key == &alloy_primitives::address!("0x71439c54126bfd73d6757b3f1b0cb1b74a7be3a7")
         });
-        use std::str::FromStr;
+
+        // NOTE: inspect the post-state of an account that causes a mismatch
         let mut value = bundle
             .state
-            .get_mut(&alloy_primitives::address!("0x000000629fbcf27a347d1aeba658435230d74a5f"))
+            .get_mut(&alloy_primitives::address!("0x6887246668a3b87f54deb3b94ba47a6f63f32985"))
             .unwrap();
-        value.info.as_mut().unwrap().balance =
-            alloy_primitives::U256::from_str("63298440508785708615").unwrap();
-
-        info!("bundle state len: {}", bundle.state.len());
-        info!("{:#?}", bundle.state);
+        info!("state for 0x6887246668a3b87f54deb3b94ba47a6f63f32985: {value:#?}");
 
         let hashed: HashedPostState =
             HashedPostState::from_bundle_state::<KeccakKeyHasher>(&bundle.state);

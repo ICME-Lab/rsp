@@ -1,3 +1,102 @@
+# NovaNet ETH proofs
+
+Modified version of rsp to get state export working. Idea is that code that builds the state (`HostExecutor::execute()`) could be copied to NovaNet's eth-proofs host implementation, minimizing `ClientExecutorInput` to something that could be deserialized in WASM and the implementing a block executor with revm that takes `ClientExecutorInput`, deserializes it and executes the block with revm in WASM. PoC of the WASM executor is currently being developed in `FullExecutor::test()` function.
+
+### prove block with revm:
+```
+cargo run --profile release --bin eth-proofs -- --ws-rpc-url <URL> --http-rpc-url <URL>
+````
+
+#### modifications made in `bin/eth-proofs/src/main.rs`:
+
+* uncomment `// executor.test().await;` to execute a block with revm (`crates/executor/host/src/full_executor.rs#231`)
+* uncomment `// executor.execute(20526624u64).await;` to execute a block reth (`crates/executor/host/src/host_executor.rs#63`)
+
+see the comments above these two functions for more details. Essentially `executor.test().await` is a WIP function that attempts to execute an ETH block with revm, using the state built by reth (`./20526624.bin`). `executor.execute(20526624u64).await` can be used to build new states for different blocks and produce state roots which can then be compared against the state roots calculated by `executor.test().await`.
+
+current issues:
+   * post-state of the client executor (`bin/client/src/main.rs`) that uses the pre-generated state contains *79* state modifications
+   * post-state of the revm executor (`crates/executor/host/src/full_executor.rs FullExecutor::test()`) that uses the pre-generated state contains *77* state modifications, i.e., missing two accounts
+
+`./output1` contains a list of accounts that revm modified during execution, `./output3` contains a list of accounts that client executor modified during execution
+
+`0x000f3df6d732807ef1319fb7b8bb8522d0beac02, Changed` and `0xf5a2ecec8333bb295569bb40f41918d3073ccab2, Changed` are missing. Why they're missing from revm's post-state is not known yet.
+
+
+### current issue under investigation
+
+transaction which currently causes issues: https://etherscan.io/tx/0x9e99b84038e3c67b604826850c105f9e6b0e4328899c69c5fefe98ce4db6f83e
+
+the tx contains 5 blobs and the post-state for the account that sent this tx (`0x6887246668a3b87f54deb3b94ba47a6f63f32985`) has different balance between revm and reth. The tx should deduct data fee (`655,360`) from the balance and it's correctly deducted when run with reth but revm doesn't deduct this, causing there to be a mismatch in balance, causing state root mismatch between revm and reth. Essentially revm doesn't deduct the data fee even though it probably should.
+
+this account is not the only issue and there is at least one more (could be the two missing accounts) because excluding `0x6887246668a3b87f54deb3b94ba47a6f63f32985` from state root calculation still results in state root mismatch.
+
+if the post-state only includes the following accounts, state roots matches between reth and revm:
+* 0x000000629fbcf27a347d1aeba658435230d74a5f
+* 0x037dd48ffd09fbdc1e385fefda48c6e1ef1382af
+* 0x06a9ab27c7e2255df1815e6cc0168d7755feb19a
+* 0x08e96f308eb008b3db68640aba6b06078625f8cd
+* 0x0d0707963952f2fba59dd06f2b425ace40b492fe
+* 0x111111125421ca6dc452d289314280a0f8842a65
+* 0x12106758e03613e66fa96209927940c825e85fff
+* 0x1516008376543c283654f60b03a28e1c9930806a
+* 0x16c0829dd60124f2a7d49a5e768f7978a57c2393
+* 0x1728d7099f6535f5efeba784a4ba54120ceada6b
+* 0x1d71eb5d4f05884add4d8e8a4d31eef3a4263c47
+* 0x23529b46bb5fdb9f9d0427e9a35115551b72581b
+* 0x239426c2feda17d10635b6e7d1cfca9ab33ab222
+* 0x26c1087b6a658c106768eea1931e083ce469f20c
+* 0x30daff27da012e118c07fae5380eb06f707c5ce4
+* 0x340d2bde5eb28c1eed91b2f790723e3b160613b7
+* 0x3777261fd6e1ec0704735d491328215b9f5825b1
+* 0x4280b10e7cd12171e944401e4018250d2052a0d6
+* 0x4a5565db6515923418bb9ab1a8ad816e85c12ff4
+* 0x4cff49d0a19ed6ff845a9122fa912abcfb1f68a6
+* 0x4d224452801aced8b2f0aebe155379bb5d594381
+* 0x4d9ff50ef4da947364bb9650892b2554e7be5e2b
+* 0x5c9538085fdfce7470e66f7c3e1b1f0f01d969aa
+* 0x5faa989af96af85384b8a938c2ede4a7378d9875
+* 0x671e1c289f45ccaa82843501c7bc841ba26b97f1
+
+meaning it is possible under certain conditions to get a state root match between revm and reth. Rest of the accounts have not been tested yet.
+
+### debugging state root mismatches
+
+* add new account to `FullExecutor::test()#350 bundle.state.retain(...)`, uncomment `executor.test().await` and run `cargo run ...` (see above)
+  * prints `calculated state root = 0x006c250904cb160c5fd51724900cfd967d22141ca1accc9e52f9a4b82e1a3d8c`
+* add the same account to `HostExecutor::execute()#194 bundle.state.retain(...)`, uncomment `executor.execute(20526624u64).await` and run `cargo run ...`
+   * prints `state root = 0x006c250904cb160c5fd51724900cfd967d22141ca1accc9e52f9a4b82e1a3d8c`
+
+if the state roots match, repeat process. If they do not match, inspect the post-states between revm and reth:
+
+`FullExecutor::test()#388-392`:
+
+```rust
+let mut value = bundle
+   .state
+   .get_mut(&alloy_primitives::address!("0x6887246668a3b87f54deb3b94ba47a6f63f32985"))
+   .unwrap();
+info!("state for 0x6887246668a3b87f54deb3b94ba47a6f63f32985: {value:#?}");
+```
+
+`HostExecutor::execute()#231-236`:
+
+```rust
+tracing::info!(
+  "state for 0x6887246668a3b87f54deb3b94ba47a6f63f32985: {:#?}",
+  executor_outcome.bundle.state.get(&alloy_primitives::address!(
+      "0x6887246668a3b87f54deb3b94ba47a6f63f32985"
+  ))
+);
+```
+
+for `0x6887246668a3b87f54deb3b94ba47a6f63f32985` there is a balance mismatch because of the data blobs being ignored, resulting in a state root mismatch.
+
+whether revm can deduct them is unsure, this what the developer commented on an unrelated issue in Github: https://github.com/bluealloy/revm/issues/1370#issuecomment-2094685067
+
+modifying the blob gas price for tx (`modify_tx()`) or block (`modify_block_chained()`) does not seem to have an effect. The documnetation for revm is very limited and the example code resulted in incorrect gas fees being deducted (`etx.gas_price = tx.gas_price().unwrap_or(tx.inner.max_fee_per_gas());` vs `inner.effective_gas_price(block.header.base_fee_per_gas)`) so all of the examples cannot be trusted fully either.
+
+---
 # Reth Succinct Processor (RSP)
 
 A minimal implementation of generating zero-knowledge proofs of EVM block execution using [Reth](https://github.com/paradigmxyz/reth). Supports both Ethereum and OP Stack.
