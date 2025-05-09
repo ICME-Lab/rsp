@@ -282,10 +282,15 @@ where
                 etx.caller = signer;
                 etx.gas_limit = inner.gas_limit();
                 // etx.gas_price = inner.gas_price().unwrap_or(inner.max_fee_per_gas());
-                etx.gas_price = tx.gas_price().unwrap_or(inner.effective_gas_price(None));
+                etx.gas_price = inner.effective_gas_price(block.header.base_fee_per_gas);
+
+                info!("\ngas price: {:?}", etx.gas_price);
+                info!("effective gas price: {:?}", inner.effective_gas_price(None));
+
                 etx.value = inner.value();
                 etx.data = inner.input().to_owned();
                 etx.gas_priority_fee = inner.max_priority_fee_per_gas();
+                etx.max_fee_per_blob_gas = inner.max_fee_per_blob_gas().unwrap_or(u128::MAX);
                 etx.chain_id = Some(1u64);
                 etx.nonce = inner.nonce();
                 if let Some(access_list) = inner.access_list() {
@@ -321,24 +326,22 @@ where
         }
 
         bundle.state.retain(|key, _| {
-            key == &alloy_primitives::address!("0x000000629fbcf27a347d1aeba658435230d74a5f")
-            // key == &alloy_primitives::address!("0x037dd48ffd09fbdc1e385fefda48c6e1ef1382af")
-            // key == &alloy_primitives::address!("0x30daff27da012e118c07fae5380eb06f707c5ce4")
-            // key == &alloy_primitives::address!("0x3777261fd6e1ec0704735d491328215b9f5825b1") ||
-            // key == &alloy_primitives::address!("0x671e1c289f45ccaa82843501c7bc841ba26b97f1") ||
-            // key == &alloy_primitives::address!("0xf70da97812cb96acdf810712aa562db8dfa3dbef")
+            key == &alloy_primitives::address!("0x000000629fbcf27a347d1aeba658435230d74a5f") ||
+                key == &alloy_primitives::address!("0x037dd48ffd09fbdc1e385fefda48c6e1ef1382af") ||
+                key == &alloy_primitives::address!("0x30daff27da012e118c07fae5380eb06f707c5ce4") ||
+                key == &alloy_primitives::address!("0x3777261fd6e1ec0704735d491328215b9f5825b1") ||
+                key == &alloy_primitives::address!("0x671e1c289f45ccaa82843501c7bc841ba26b97f1") ||
+                key == &alloy_primitives::address!("0xf70da97812cb96acdf810712aa562db8dfa3dbef")
         });
         use std::str::FromStr;
         let mut value = bundle
             .state
             .get_mut(&alloy_primitives::address!("0x000000629fbcf27a347d1aeba658435230d74a5f"))
             .unwrap();
-
         value.info.as_mut().unwrap().balance =
             alloy_primitives::U256::from_str("63298440508785708615").unwrap();
 
         info!("bundle state len: {}", bundle.state.len());
-
         info!("{:#?}", bundle.state);
 
         let hashed: HashedPostState =

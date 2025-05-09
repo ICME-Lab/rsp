@@ -1,6 +1,6 @@
 use std::{collections::BTreeSet, sync::Arc};
 
-use alloy_consensus::{BlockHeader, Header, TxReceipt};
+use alloy_consensus::{BlockHeader, Header, Transaction, TxReceipt};
 use alloy_evm::EthEvmFactory;
 use alloy_primitives::{Bloom, Sealable};
 use alloy_provider::{Network, Provider};
@@ -103,6 +103,16 @@ impl<C: ConfigureEvm> HostExecutor<C> {
             current_block.body().transactions().len()
         );
 
+        // for tx in current_block.body().transactions() {
+        //     tracing::info!(
+        //         "{:?}: gas price {:?}, max fee {:?}, effective {:?}",
+        //         tx.to(),
+        //         tx.gas_price(),
+        //         tx.max_fee_per_gas(),
+        //         tx.effective_gas_price(None)
+        //     );
+        // }
+
         let block = current_block
             .clone()
             .try_into_recovered()
@@ -178,17 +188,22 @@ impl<C: ConfigureEvm> HostExecutor<C> {
         tracing::info!("verifying the state root = {}", executor_outcome.state().state.len());
 
         // panic!("heree");
-        let state_root = {
-            let mut mutated_state = state.clone();
-            executor_outcome.bundle.state.retain(|key, _| {
-                key == &alloy_primitives::address!("0x000000629fbcf27a347d1aeba658435230d74a5f")
-                // key == &alloy_primitives::address!("0x037dd48ffd09fbdc1e385fefda48c6e1ef1382af")
+        let state_root =
+            {
+                let mut mutated_state = state.clone();
+                executor_outcome.bundle.state.retain(|key, _| {
+            key == &alloy_primitives::address!("0x000000629fbcf27a347d1aeba658435230d74a5f") ||
+                key == &alloy_primitives::address!("0x037dd48ffd09fbdc1e385fefda48c6e1ef1382af") ||
+                key == &alloy_primitives::address!("0x30daff27da012e118c07fae5380eb06f707c5ce4") ||
+                key == &alloy_primitives::address!("0x3777261fd6e1ec0704735d491328215b9f5825b1") ||
+                key == &alloy_primitives::address!("0x671e1c289f45ccaa82843501c7bc841ba26b97f1") ||
+                key == &alloy_primitives::address!("0xf70da97812cb96acdf810712aa562db8dfa3dbef")
             });
-            tracing::info!("{:#?}", executor_outcome.bundle.state);
+                tracing::info!("{:#?}", executor_outcome.bundle.state);
 
-            mutated_state.update(&executor_outcome.hash_state_slow::<KeccakKeyHasher>());
-            mutated_state.state_root()
-        };
+                mutated_state.update(&executor_outcome.hash_state_slow::<KeccakKeyHasher>());
+                mutated_state.state_root()
+            };
 
         // if state_root != current_block.header().state_root() {
         //     return Err(HostError::StateRootMismatch(

@@ -67,8 +67,8 @@ async fn main() -> eyre::Result<()> {
     )
     .await?;
 
-    executor.test().await;
-    // executor.execute(20526624u64).await;
+    // executor.test().await;
+    executor.execute(20526624u64).await;
 
     // info!("Latest block number: {}", http_provider.get_block_number().await?);
 
