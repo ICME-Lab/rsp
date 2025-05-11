@@ -31,7 +31,7 @@ the tx contains 5 blobs and the post-state for the account that sent this tx (`0
 
 this account is not the only issue and there is at least one more (could be the two missing accounts) because excluding `0x6887246668a3b87f54deb3b94ba47a6f63f32985` from state root calculation still results in state root mismatch.
 
-if the post-state only includes the following accounts, state roots matches between reth and revm:
+if the post-state includes only the following accounts, state roots matches between reth and revm:
 * 0x000000629fbcf27a347d1aeba658435230d74a5f
 * 0x037dd48ffd09fbdc1e385fefda48c6e1ef1382af
 * 0x06a9ab27c7e2255df1815e6cc0168d7755feb19a
@@ -110,9 +110,20 @@ if the post-state only includes the following accounts, state roots matches betw
 
 known bad accounts in block 20526624:
  * 0x6887246668a3b87f54deb3b94ba47a6f63f32985
+   * blob data fee not accounted for by revm
  * 0x7e2a2fa2a064f693f0a55c5639476d913ff12d05
+   * builder of block 20526624
+   * mismatch in balance after execution between reth & revm
+   * maybe tips/miner fee is not added by revm?
  * 0xf5a2ecec8333bb295569bb40f41918d3073ccab2
+   * beacon chain withdrawals not accounted for by remv
+   * state for the account completely missing in post state
+   * https://etherscan.io/txsBeaconWithdrawal?block=20526624
  * 0xf70da97812cb96acdf810712aa562db8dfa3dbef
+   * revm gas usage differs from etherscan:
+      * revm: 21,160
+      * etherscan: 21,064
+   * https://etherscan.io/tx/0xdf6b80f1e416ae72b66d25313456c1a218588ac3355104b4947e9efd1b9813fc
 
 the "bad accounts" have different post-state when executing with revm compared to reth
 
